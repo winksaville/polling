@@ -105,7 +105,7 @@ impl Poller {
 
     /// Waits for I/O events with an optional timeout.
     pub fn wait(&self, events: &mut Events, timeout: Option<Duration>) -> io::Result<()> {
-        log::trace!("wait: epoll_fd={}, timeout={:?}", self.epoll_fd, timeout);
+        log::trace!("wait:+ epoll_fd={}, timeout={:?}", self.epoll_fd, timeout);
 
         if let Some(timer_fd) = self.timer_fd {
             // Configure the timeout using timerfd.
@@ -120,6 +120,8 @@ impl Poller {
                 },
             };
 
+            let ts = new_val.it_value.clone();
+            log::trace!("wait: configure epoll_fd={}, timeout={:?} sec={}.{}", self.epoll_fd, timeout, ts.tv_sec, ts.tv_nsec);
             syscall!(syscall(
                 libc::SYS_timerfd_settime,
                 timer_fd as libc::c_int,
@@ -154,14 +156,18 @@ impl Poller {
         };
 
         // Wait for I/O events.
+        let events_list_len = events.list.len();
+        log::trace!("wait: waiting epoll_fd={}, timeout={:?} timeout_ms={}, events.list.len={}", self.epoll_fd, timeout, timeout_ms, events_list_len);
         let res = syscall!(epoll_wait(
             self.epoll_fd,
             events.list.as_mut_ptr() as *mut libc::epoll_event,
             events.list.len() as libc::c_int,
             timeout_ms as libc::c_int,
         ))?;
+        assert!(res >= 0);
         events.len = res as usize;
-        log::trace!("new events: epoll_fd={}, res={}", self.epoll_fd, res);
+        assert!(events.len <= events_list_len);
+        log::trace!("wait: running epoll_fd={}, events.len={}", self.epoll_fd, events.len);
 
         // Clear the notification (if received) and re-register interest in it.
         let mut buf = [0u8; 8];
@@ -178,13 +184,14 @@ impl Poller {
                 writable: false,
             },
         )?;
+        log::trace!("wait:- epoll_fd={}, res={}", self.epoll_fd, res);
         Ok(())
     }
 
     /// Sends a notification to wake up the current or next `wait()` call.
     pub fn notify(&self) -> io::Result<()> {
         log::trace!(
-            "notify: epoll_fd={}, event_fd={}",
+            "notify:+ epoll_fd={}, event_fd={}",
             self.epoll_fd,
             self.event_fd
         );
@@ -195,6 +202,11 @@ impl Poller {
             buf.as_ptr() as *const libc::c_void,
             buf.len()
         ));
+        log::trace!(
+            "notify:- epoll_fd={}, event_fd={}",
+            self.epoll_fd,
+            self.event_fd
+        );
         Ok(())
     }
 
@@ -208,20 +220,37 @@ impl Poller {
             if ev.writable {
                 flags |= write_flags();
             }
+            log::trace!("ctl:+ epoll_fd={}, event_fd={} flags={} key={}", self.epoll_fd, self.event_fd, flags, ev.key);
             libc::epoll_event {
                 events: flags as _,
                 u64: ev.key as u64,
             }
         });
-        syscall!(epoll_ctl(
+        if ev.is_none() {
+            log::trace!(
+                "ctl:+ epoll_fd={}, event_fd={}",
+                self.epoll_fd,
+                self.event_fd,
+            );
+        }
+        let result = syscall!(epoll_ctl(
             self.epoll_fd,
             op,
             fd,
             ev.as_mut()
                 .map(|ev| ev as *mut libc::epoll_event)
                 .unwrap_or(ptr::null_mut()),
-        ))?;
-        Ok(())
+        ));
+        log::trace!(
+            "ctl:- epoll_fd={}, event_fd={} result={:?}",
+            self.epoll_fd,
+            self.event_fd,
+            result,
+        );
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e)
+        }
     }
 }
 
