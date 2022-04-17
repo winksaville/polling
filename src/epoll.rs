@@ -106,7 +106,7 @@ impl Poller {
     /// Waits for I/O events with an optional timeout.
     pub fn wait(&self, events: &mut Events, timeout: Option<Duration>) -> io::Result<()> {
         log::trace!("wait:+ epoll_fd={}, timeout={:?}", self.epoll_fd, timeout);
-        log::trace!("wait:  backtrace\n{}", std::backtrace::Backtrace::force_capture());
+        log::trace!("tid={:?} wait:  backtrace\n{}", std::thread::current().id(), std::backtrace::Backtrace::force_capture());
 
         if let Some(timer_fd) = self.timer_fd {
             // Configure the timeout using timerfd.
