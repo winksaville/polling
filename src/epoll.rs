@@ -87,8 +87,11 @@ impl Poller {
 
     /// Adds a new file descriptor.
     pub fn add(&self, fd: RawFd, ev: Event) -> io::Result<()> {
-        log::trace!("add: epoll_fd={}, fd={}, ev={:?}", self.epoll_fd, fd, ev);
-        self.ctl(libc::EPOLL_CTL_ADD, fd, Some(ev))
+        log::trace!("add:+ epoll_fd={}, fd={}, ev={:?}", self.epoll_fd, fd, ev);
+        log::trace!("add: epoll_fd={}, fd={}, ev={:?} backtrace:\n{}", self.epoll_fd, fd, ev, std::backtrace::Backtrace::force_capture());
+        let result = self.ctl(libc::EPOLL_CTL_ADD, fd, Some(ev));
+        log::trace!("add:- epoll_fd={}, fd={}, ev={:?}", self.epoll_fd, fd, ev);
+        result
     }
 
     /// Modifies an existing file descriptor.
@@ -212,8 +215,8 @@ impl Poller {
     }
 
     /// Passes arguments to `epoll_ctl`.
-    fn ctl(&self, op: libc::c_int, fd: RawFd, ev: Option<Event>) -> io::Result<()> {
-        let mut ev = ev.map(|ev| {
+    fn ctl(&self, op: libc::c_int, fd: RawFd, event: Option<Event>) -> io::Result<()> {
+        let mut ev = event.map(|ev| {
             let mut flags = libc::EPOLLONESHOT;
             if ev.readable {
                 flags |= read_flags();
@@ -221,7 +224,7 @@ impl Poller {
             if ev.writable {
                 flags |= write_flags();
             }
-            log::trace!("ctl:+ epoll_fd={}, event_fd={} flags={} key={}", self.epoll_fd, self.event_fd, flags, ev.key);
+            log::trace!("ctl:+ epoll_fd={}, event_fd={} flags={} ev={:?}", self.epoll_fd, self.event_fd, flags, ev);
             libc::epoll_event {
                 events: flags as _,
                 u64: ev.key as u64,
@@ -229,7 +232,7 @@ impl Poller {
         });
         if ev.is_none() {
             log::trace!(
-                "ctl:+ epoll_fd={}, event_fd={}",
+                "ctl:+ epoll_fd={}, event_fd={}, ev=None",
                 self.epoll_fd,
                 self.event_fd,
             );
@@ -243,9 +246,10 @@ impl Poller {
                 .unwrap_or(ptr::null_mut()),
         ));
         log::trace!(
-            "ctl:- epoll_fd={}, event_fd={} result={:?}",
+            "ctl:- epoll_fd={}, event_fd={}, ev={:?} result={:?}",
             self.epoll_fd,
             self.event_fd,
+            event,
             result,
         );
         match result {
