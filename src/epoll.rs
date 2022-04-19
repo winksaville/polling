@@ -87,7 +87,7 @@ impl Poller {
 
     /// Adds a new file descriptor.
     pub fn add(&self, fd: RawFd, ev: Event) -> io::Result<()> {
-        log::trace!("add:+ epoll_fd={}, fd={}, ev={:?}", self.epoll_fd, fd, ev);
+        log::trace!("add:+ tid={} epoll_fd={}, fd={}, ev={:?}", std::thread::current().id().as_u64(), self.epoll_fd, fd, ev);
         log::trace!("add: epoll_fd={}, fd={}, ev={:?} backtrace:\n{}", self.epoll_fd, fd, ev, std::backtrace::Backtrace::force_capture());
         let result = self.ctl(libc::EPOLL_CTL_ADD, fd, Some(ev));
         log::trace!("add:- epoll_fd={}, fd={}, ev={:?}", self.epoll_fd, fd, ev);
