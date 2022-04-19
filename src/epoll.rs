@@ -88,7 +88,7 @@ impl Poller {
     /// Adds a new file descriptor.
     pub fn add(&self, fd: RawFd, ev: Event) -> io::Result<()> {
         log::trace!("add:+ tid={} epoll_fd={}, fd={}, ev={:?}", std::thread::current().id().as_u64(), self.epoll_fd, fd, ev);
-        log::trace!("add: epoll_fd={}, fd={}, ev={:?} backtrace:\n{}", self.epoll_fd, fd, ev, std::backtrace::Backtrace::force_capture());
+        //log::trace!("add: epoll_fd={}, fd={}, ev={:?} backtrace:\n{}", self.epoll_fd, fd, ev, std::backtrace::Backtrace::force_capture());
         let result = self.ctl(libc::EPOLL_CTL_ADD, fd, Some(ev));
         log::trace!("add:- epoll_fd={}, fd={}, ev={:?}", self.epoll_fd, fd, ev);
         result
@@ -109,7 +109,7 @@ impl Poller {
     /// Waits for I/O events with an optional timeout.
     pub fn wait(&self, events: &mut Events, timeout: Option<Duration>) -> io::Result<()> {
         log::trace!("wait:+ tid={} epoll_fd={}, timeout={:?}", std::thread::current().id().as_u64(), self.epoll_fd, timeout);
-        log::trace!("wait:  backtrace\n{}", std::backtrace::Backtrace::force_capture());
+        //log::trace!("wait:  backtrace\n{}", std::backtrace::Backtrace::force_capture());
 
         if let Some(timer_fd) = self.timer_fd {
             // Configure the timeout using timerfd.
