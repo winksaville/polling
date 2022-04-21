@@ -177,7 +177,13 @@ impl Poller {
         assert!(res >= 0);
         events.len = res as usize;
         assert!(events.len <= events_list_len);
-        log::trace!("wait: running epoll_fd={}, events.len={} res={}", self.epoll_fd, events.len, res);
+        log::trace!("wait: running epoll_fd={}, events.len={} res={} events.list:", self.epoll_fd, events.len, res);
+        for (i, ev) in events.list.iter().enumerate() {
+            let e: libc::epoll_event = *ev;
+            let events = e.events;
+            let u64: u64 = e.u64;
+            log::trace!("wait: list[{}] libc::epoll_event {{ events: {:0x} u64: {} }} ", i, events, u64);
+        }
 
         // Clear the notification (if received) and re-register interest in it.
         let mut buf = [0u8; 8];
@@ -226,7 +232,7 @@ impl Poller {
             if ev.writable {
                 flags |= write_flags();
             }
-            log::trace!("ctl:+ tid={} epoll_fd={}, event_fd={} flags={} ev={:?}", std::thread::current().id().as_u64(), self.epoll_fd, self.event_fd, flags, ev);
+            log::trace!("ctl:+ tid={} epoll_fd={}, event_fd={} libc::epoll_event {{ events={:0x} u64={} }}", std::thread::current().id().as_u64(), self.epoll_fd, self.event_fd, flags, ev.key);
             libc::epoll_event {
                 events: flags as _,
                 u64: ev.key as u64,
