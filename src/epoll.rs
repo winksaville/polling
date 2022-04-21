@@ -22,6 +22,8 @@ pub struct Poller {
 impl Poller {
     /// Creates a new poller.
     pub fn new() -> io::Result<Poller> {
+        log::trace!("new:+ tid={}", std::thread::current().id().as_u64());
+
         // Create an epoll instance.
         //
         // Use `epoll_create1` with `EPOLL_CLOEXEC`.
@@ -77,7 +79,7 @@ impl Poller {
         )?;
 
         log::trace!(
-            "new: epoll_fd={}, event_fd={}, timer_fd={:?}",
+            "new:- epoll_fd={}, event_fd={}, timer_fd={:?}",
             epoll_fd,
             event_fd,
             timer_fd
@@ -96,14 +98,18 @@ impl Poller {
 
     /// Modifies an existing file descriptor.
     pub fn modify(&self, fd: RawFd, ev: Event) -> io::Result<()> {
-        log::trace!("modify: epoll_fd={}, fd={}, ev={:?}", self.epoll_fd, fd, ev);
-        self.ctl(libc::EPOLL_CTL_MOD, fd, Some(ev))
+        log::trace!("modify:+ tid={} epoll_fd={}, fd={}, ev={:?}", std::thread::current().id().as_u64(), self.epoll_fd, fd, ev);
+        let result = self.ctl(libc::EPOLL_CTL_MOD, fd, Some(ev));
+        log::trace!("modify:- epoll_fd={}, fd={}, ev={:?}", self.epoll_fd, fd, ev);
+        result
     }
 
     /// Deletes a file descriptor.
     pub fn delete(&self, fd: RawFd) -> io::Result<()> {
-        log::trace!("remove: epoll_fd={}, fd={}", self.epoll_fd, fd);
-        self.ctl(libc::EPOLL_CTL_DEL, fd, None)
+        log::trace!("delete:+ tid={} epoll_fd={}, fd={}", std::thread::current().id().as_u64(), self.epoll_fd, fd);
+        let result = self.ctl(libc::EPOLL_CTL_DEL, fd, None);
+        log::trace!("delete:- epoll_fd={}, fd={}", self.epoll_fd, fd);
+        result
     }
 
     /// Waits for I/O events with an optional timeout.
@@ -194,11 +200,7 @@ impl Poller {
 
     /// Sends a notification to wake up the current or next `wait()` call.
     pub fn notify(&self) -> io::Result<()> {
-        log::trace!(
-            "notify:+ epoll_fd={}, event_fd={}",
-            self.epoll_fd,
-            self.event_fd
-        );
+        log::trace!("new:+ tid={} epoll_fd={}, event_fd={}", std::thread::current().id().as_u64(), self.epoll_fd, self.event_fd);
 
         let buf: [u8; 8] = 1u64.to_ne_bytes();
         let _ = syscall!(write(
@@ -224,18 +226,14 @@ impl Poller {
             if ev.writable {
                 flags |= write_flags();
             }
-            log::trace!("ctl:+ epoll_fd={}, event_fd={} flags={} ev={:?}", self.epoll_fd, self.event_fd, flags, ev);
+            log::trace!("ctl:+ tid={} epoll_fd={}, event_fd={} flags={} ev={:?}", std::thread::current().id().as_u64(), self.epoll_fd, self.event_fd, flags, ev);
             libc::epoll_event {
                 events: flags as _,
                 u64: ev.key as u64,
             }
         });
         if ev.is_none() {
-            log::trace!(
-                "ctl:+ epoll_fd={}, event_fd={}, ev=None",
-                self.epoll_fd,
-                self.event_fd,
-            );
+            log::trace!("ctl:+ tid={} epoll_fd={}, event_fd={} ev=None", std::thread::current().id().as_u64(), self.epoll_fd, self.event_fd);
         }
         let result = syscall!(epoll_ctl(
             self.epoll_fd,
