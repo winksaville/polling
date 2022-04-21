@@ -177,7 +177,7 @@ impl Poller {
         assert!(res >= 0);
         events.len = res as usize;
         assert!(events.len <= events_list_len);
-        log::trace!("wait: running epoll_fd={}, events.len={}", self.epoll_fd, events.len);
+        log::trace!("wait: running epoll_fd={}, events.len={} res={}", self.epoll_fd, events.len, res);
 
         // Clear the notification (if received) and re-register interest in it.
         let mut buf = [0u8; 8];
