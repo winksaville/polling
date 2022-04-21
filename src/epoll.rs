@@ -177,8 +177,11 @@ impl Poller {
         assert!(res >= 0);
         events.len = res as usize;
         assert!(events.len <= events_list_len);
-        log::trace!("wait: running epoll_fd={}, events.len={} res={} events.list:", self.epoll_fd, events.len, res);
+        log::trace!("wait: running epoll_fd={}, events.len={} events.list:", self.epoll_fd, events.len);
+
+        // Print events that are ready, surely there is a better way :)
         for (i, ev) in events.list.iter().enumerate() {
+            if i >= res as usize { break }
             let e: libc::epoll_event = *ev;
             let events = e.events;
             let u64: u64 = e.u64;
