@@ -1,4 +1,4 @@
-//! Bindings to epoll (Linux, Android).
+//!  Bindings to epoll (Linux, Android).
 
 use std::convert::TryInto;
 use std::io;
@@ -7,6 +7,16 @@ use std::ptr;
 use std::time::Duration;
 
 use crate::Event;
+
+fn eev_to_string(ev: &libc::epoll_event) -> String {
+    let events = ev.events;
+    let u64: u64 = ev.u64;
+    format!("{{ events: {:0x} u64: {:x} }}", events, u64)
+}
+
+fn ev_to_string(ev: &Event) -> String {
+    format!("Event {{ r: {} w: {} key: {:x} }} ", ev.readable, ev.writable, ev.key)
+}
 
 /// Interface to epoll.
 #[derive(Debug)]
@@ -89,18 +99,18 @@ impl Poller {
 
     /// Adds a new file descriptor.
     pub fn add(&self, fd: RawFd, ev: Event) -> io::Result<()> {
-        log::trace!("add:+ tid={} epoll_fd={}, fd={}, ev={:?}", std::thread::current().id().as_u64(), self.epoll_fd, fd, ev);
+        log::trace!("add:+ tid={} epoll_fd={}, fd={}, ev={}", std::thread::current().id().as_u64(), self.epoll_fd, fd, ev_to_string(&ev));
         //log::trace!("add: epoll_fd={}, fd={}, ev={:?} backtrace:\n{}", self.epoll_fd, fd, ev, std::backtrace::Backtrace::force_capture());
         let result = self.ctl(libc::EPOLL_CTL_ADD, fd, Some(ev));
-        log::trace!("add:- epoll_fd={}, fd={}, ev={:?}", self.epoll_fd, fd, ev);
+        log::trace!("add:-");
         result
     }
 
     /// Modifies an existing file descriptor.
     pub fn modify(&self, fd: RawFd, ev: Event) -> io::Result<()> {
-        log::trace!("modify:+ tid={} epoll_fd={}, fd={}, ev={:?}", std::thread::current().id().as_u64(), self.epoll_fd, fd, ev);
+        log::trace!("modify:+ tid={} epoll_fd={}, fd={}, ev={}", std::thread::current().id().as_u64(), self.epoll_fd, fd, ev_to_string(&ev));
         let result = self.ctl(libc::EPOLL_CTL_MOD, fd, Some(ev));
-        log::trace!("modify:- epoll_fd={}, fd={}, ev={:?}", self.epoll_fd, fd, ev);
+        log::trace!("modify:-");
         result
     }
 
@@ -108,7 +118,7 @@ impl Poller {
     pub fn delete(&self, fd: RawFd) -> io::Result<()> {
         log::trace!("delete:+ tid={} epoll_fd={}, fd={}", std::thread::current().id().as_u64(), self.epoll_fd, fd);
         let result = self.ctl(libc::EPOLL_CTL_DEL, fd, None);
-        log::trace!("delete:- epoll_fd={}, fd={}", self.epoll_fd, fd);
+        log::trace!("delete:-");
         result
     }
 
@@ -182,10 +192,7 @@ impl Poller {
         // Print events that are ready, surely there is a better way :)
         for (i, ev) in events.list.iter().enumerate() {
             if i >= res as usize { break }
-            let e: libc::epoll_event = *ev;
-            let events = e.events;
-            let u64: u64 = e.u64;
-            log::trace!("wait: list[{}] libc::epoll_event {{ events: {:0x} u64: {} }} ", i, events, u64);
+            log::trace!("wait: list[{}] {}", i, eev_to_string(ev).as_str());
         }
 
         // Clear the notification (if received) and re-register interest in it.
@@ -235,11 +242,12 @@ impl Poller {
             if ev.writable {
                 flags |= write_flags();
             }
-            log::trace!("ctl:+ tid={} epoll_fd={}, event_fd={} libc::epoll_event {{ events={:0x} u64={} }}", std::thread::current().id().as_u64(), self.epoll_fd, self.event_fd, flags, ev.key);
-            libc::epoll_event {
+            let ee = libc::epoll_event {
                 events: flags as _,
                 u64: ev.key as u64,
-            }
+            };
+            log::trace!("ctl:+ tid={} epoll_fd={}, event_fd={} {}", std::thread::current().id().as_u64(), self.epoll_fd, self.event_fd, eev_to_string(&ee));
+            ee
         });
         if ev.is_none() {
             log::trace!("ctl:+ tid={} epoll_fd={}, event_fd={} ev=None", std::thread::current().id().as_u64(), self.epoll_fd, self.event_fd);
