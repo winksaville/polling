@@ -102,7 +102,7 @@ impl Poller {
         log::trace!("add:+ tid={} epoll_fd={}, fd={}, ev={}", std::thread::current().id().as_u64(), self.epoll_fd, fd, ev_to_string(&ev));
         //log::trace!("add: epoll_fd={}, fd={}, ev={:?} backtrace:\n{}", self.epoll_fd, fd, ev, std::backtrace::Backtrace::force_capture());
         let result = self.ctl(libc::EPOLL_CTL_ADD, fd, Some(ev));
-        log::trace!("add:-");
+        log::trace!("add:- result={:?}", result);
         result
     }
 
@@ -110,7 +110,7 @@ impl Poller {
     pub fn modify(&self, fd: RawFd, ev: Event) -> io::Result<()> {
         log::trace!("modify:+ tid={} epoll_fd={}, fd={}, ev={}", std::thread::current().id().as_u64(), self.epoll_fd, fd, ev_to_string(&ev));
         let result = self.ctl(libc::EPOLL_CTL_MOD, fd, Some(ev));
-        log::trace!("modify:-");
+        log::trace!("modify:- result={:?}", result);
         result
     }
 
@@ -118,7 +118,7 @@ impl Poller {
     pub fn delete(&self, fd: RawFd) -> io::Result<()> {
         log::trace!("delete:+ tid={} epoll_fd={}, fd={}", std::thread::current().id().as_u64(), self.epoll_fd, fd);
         let result = self.ctl(libc::EPOLL_CTL_DEL, fd, None);
-        log::trace!("delete:-");
+        log::trace!("delete:- result={:?}", result);
         result
     }
 
@@ -260,13 +260,7 @@ impl Poller {
                 .map(|ev| ev as *mut libc::epoll_event)
                 .unwrap_or(ptr::null_mut()),
         ));
-        log::trace!(
-            "ctl:- epoll_fd={}, event_fd={}, ev={:?} result={:?}",
-            self.epoll_fd,
-            self.event_fd,
-            event,
-            result,
-        );
+        log::trace!("ctl:- result={:?}", result);
         match result {
             Ok(_) => Ok(()),
             Err(e) => Err(e)
