@@ -55,6 +55,7 @@
 #![warn(missing_docs, missing_debug_implementations, rust_2018_idioms)]
 #![allow(clippy::useless_conversion, clippy::unnecessary_cast)]
 
+use core::num::NonZeroU64;
 use std::fmt;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -63,6 +64,10 @@ use std::time::Duration;
 use std::usize;
 
 use cfg_if::cfg_if;
+
+fn tid() -> NonZeroU64 {
+    std::thread::current().id().as_u64()
+}
 
 /// Calls a libc function and results in `io::Result`.
 #[cfg(unix)]
