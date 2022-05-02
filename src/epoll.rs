@@ -99,25 +99,19 @@ impl Poller {
 
     /// Adds a new file descriptor.
     pub fn add(&self, fd: RawFd, ev: Event) -> io::Result<()> {
-        log::trace!("add:+ epoll_fd={}, fd={}, ev={}", self.epoll_fd, fd, ev_to_string(&ev));
         let res= self.ctl(libc::EPOLL_CTL_ADD, fd, Some(ev));
-        log::trace!("add:- epoll_fd={}, fd={}, res={:?}", self.epoll_fd, fd, res);
         res
     }
 
     /// Modifies an existing file descriptor.
     pub fn modify(&self, fd: RawFd, ev: Event) -> io::Result<()> {
-        log::trace!("modify:+ epoll_fd={}, fd={}, ev={}", self.epoll_fd, fd, ev_to_string(&ev));
         let res= self.ctl(libc::EPOLL_CTL_MOD, fd, Some(ev));
-        log::trace!("modify:- epoll_fd={}, fd={}, res={:?}", self.epoll_fd, fd, res);
         res
     }
 
     /// Deletes a file descriptor.
     pub fn delete(&self, fd: RawFd) -> io::Result<()> {
-        log::trace!("delete:+ epoll_fd={}, fd={}", self.epoll_fd, fd);
         let res = self.ctl(libc::EPOLL_CTL_DEL, fd, None);
-        log::trace!("delete:- epoll_fd={}, fd={}, res={:?}", self.epoll_fd, fd, res);
         res
     }
 
@@ -239,6 +233,14 @@ impl Poller {
 
     /// Passes arguments to `epoll_ctl`.
     fn ctl(&self, op: libc::c_int, fd: RawFd, event: Option<Event>) -> io::Result<()> {
+        // Debug Operation Str
+        let dos = match op {
+            libc::EPOLL_CTL_ADD => "ADD",
+            libc::EPOLL_CTL_MOD => "MOD",
+            libc::EPOLL_CTL_DEL => "DEL",
+            _ => "???",
+        };
+
         let mut ev = event.map(|ev| {
             let mut flags = libc::EPOLLONESHOT;
             if ev.readable {
@@ -251,11 +253,11 @@ impl Poller {
                 events: flags as _,
                 u64: ev.key as u64,
             };
-            log::trace!("ctl:+ epoll_fd={}, fd={} event_fd={} {}", self.epoll_fd, fd, self.event_fd, eev_to_string(&ee));
+            log::trace!("ctl:+ {dos} epoll_fd={}, fd={} event_fd={} {}", self.epoll_fd, fd, self.event_fd, eev_to_string(&ee));
             ee
         });
         if ev.is_none() {
-            log::trace!("ctl:+ epoll_fd={}, fd={} event_fd={} ev=None", self.epoll_fd, fd, self.event_fd);
+            log::trace!("ctl:+ {dos} epoll_fd={}, fd={} event_fd={} ev=None", self.epoll_fd, fd, self.event_fd);
         }
         let res = syscall!(epoll_ctl(
             self.epoll_fd,
@@ -265,7 +267,7 @@ impl Poller {
                 .map(|ev| ev as *mut libc::epoll_event)
                 .unwrap_or(ptr::null_mut()),
         ));
-        log::trace!("ctl:- epoll_fd={}, fd={} event_fd={} res={:?}", self.epoll_fd, fd, self.event_fd, res);
+        log::trace!("ctl:- {dos} epoll_fd={}, fd={} event_fd={} res={:?}", self.epoll_fd, fd, self.event_fd, res);
         match res {
             Ok(_) => Ok(()),
             Err(e) => Err(e)
